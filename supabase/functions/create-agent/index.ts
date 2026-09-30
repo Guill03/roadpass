@@ -40,14 +40,28 @@ export default {
             )
         }
 
-        const body = await request.json()
+        let body: Record<string, unknown>
+        try {
+            body = await request.json()
+        } catch (_) {
+            return Response.json(
+                { message: 'Le corps de la requête est invalide.' },
+                { status: 400, headers: corsHeaders },
+            )
+        }
         const nom = String(body.nom ?? '').trim()
         const prenom = String(body.prenom ?? '').trim()
         const email = String(body.email ?? '').trim().toLowerCase()
         const telephone = String(body.telephone ?? '').trim()
         const password = String(body.password ?? '')
 
-        if (!nom || !prenom || !email || !telephone || password.length < 8) {
+        if (
+            !nom ||
+            !prenom ||
+            !/^\S+@\S+\.\S+$/.test(email) ||
+            !telephone ||
+            password.length < 8
+        ) {
             return Response.json(
                 { message: 'Les informations de création sont invalides.' },
                 { status: 400, headers: corsHeaders },
@@ -63,7 +77,6 @@ export default {
                     nom,
                     prenom,
                     telephone,
-                    role: 'agent',
                 },
             })
 

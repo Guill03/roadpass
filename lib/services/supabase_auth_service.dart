@@ -1,53 +1,137 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/config/app_config.dart';
 import '../models/user.dart';
 import 'auth_service.dart';
 
-class SupabaseAuthService implements AuthService {
+class SupabaseAuthService extends AuthService {
   SupabaseAuthService({SupabaseClient? client})
     : _client = client ?? Supabase.instance.client;
 
   final SupabaseClient _client;
+  StreamSubscription<AuthState>? _authSubscription;
+  RoadUser? _currentUser;
+  bool _isInitialized = false;
+  int _sessionRevision = 0;
 
   @override
   RoadUser? get currentUser => _currentUser;
 
-  RoadUser? _currentUser;
+  @override
+  bool get isInitialized => _isInitialized;
 
   @override
   Future<void> initialize() async {
     if (!AppConfig.isConfigured) {
+      _setSessionState(user: null, initialized: true);
       return;
     }
+    _authSubscription ??= _client.auth.onAuthStateChange.listen((event) {
+      unawaited(_restoreSession(event.session));
+    });
+    await _restoreSession(_client.auth.currentSession);
+  }
 
-    final session = _client.auth.currentSession;
+  Future<void> _restoreSession(Session? session) async {
+    final revision = ++_sessionRevision;
     if (session == null) {
-      _currentUser = null;
+      if (revision == _sessionRevision) {
+        _setSessionState(user: null, initialized: true);
+      }
       return;
     }
+    try {
+      final profile = await _fetchUserProfile(session.user.id);
+      if (revision == _sessionRevision) {
+        _setSessionState(user: profile, initialized: true);
+      }
+    } catch (_) {
+      // A Supabase session without a server profile carries no RoadPass role.
+      if (revision == _sessionRevision) {
+        _setSessionState(user: null, initialized: true);
+      }
+    }
+  }
 
-    final user = await _fetchUserProfile(session.user.id);
+  void _setSessionState({required RoadUser? user, required bool initialized}) {
     _currentUser = user;
+    _isInitialized = initialized;
+    notifyListeners();
   }
 
   @override
   Future<RoadUser> login(String email, String password) async {
+    final user = await _signIn(email, password);
+    if (user.role != UserRole.user) {
+      await logout();
+      throw const RoadPassAuthException(
+        'Utilisez l’accès professionnel pour ce compte.',
+      );
+    }
+    return user;
+  }
+
+  @override
+  Future<RoadUser> professionalLogin(String email, String password) async {
+    final user = await _signIn(email, password);
+    if (user.role == UserRole.user) {
+      await logout();
+      throw const RoadPassAuthException(
+        'Ce compte n’a pas accès à l’espace professionnel.',
+      );
+    }
+    return user;
+  }
+
+  Future<RoadUser> _signIn(String email, String password) async {
     if (!AppConfig.isConfigured) {
       throw const RoadPassAuthException('Backend non configuré.');
     }
-
-    final response = await _client.auth.signInWithPassword(
-      email: email.trim(),
-      password: password,
-    );
-
-    if (response.user == null) {
-      throw const RoadPassAuthException('Identifiants invalides.');
+    try {
+      final response = await _client.auth.signInWithPassword(
+        email: email.trim(),
+        password: password,
+      );
+      final authUser = response.user;
+      if (authUser == null) {
+        throw const RoadPassAuthException(
+          'Adresse e-mail ou mot de passe incorrect.',
+        );
+      }
+      final profile = await _fetchUserProfile(authUser.id);
+      _setSessionState(user: profile, initialized: true);
+      return profile;
+    } on AuthException catch (error) {
+      throw _readableAuthException(error);
+    } on RoadPassAuthException {
+      rethrow;
+    } catch (_) {
+      throw const RoadPassAuthException(
+        'Connexion impossible. Vérifiez votre connexion Internet puis réessayez.',
+      );
     }
+  }
 
-    _currentUser = await _fetchUserProfile(response.user!.id);
-    return _currentUser!;
+  RoadPassAuthException _readableAuthException(AuthException error) {
+    switch (error.code) {
+      case 'invalid_credentials':
+      case 'invalid_grant':
+        return const RoadPassAuthException(
+          'Adresse e-mail ou mot de passe incorrect.',
+        );
+      case 'email_not_confirmed':
+        return const RoadPassAuthException(
+          'Confirmez votre adresse e-mail avant de vous connecter.',
+        );
+      case 'user_banned':
+        return const RoadPassAuthException(
+          'Ce compte est temporairement indisponible. Contactez le support.',
+        );
+      default:
+        return RoadPassAuthException('Connexion impossible : ${error.message}');
+    }
   }
 
   @override
@@ -61,39 +145,28 @@ class SupabaseAuthService implements AuthService {
     if (!AppConfig.isConfigured) {
       throw const RoadPassAuthException('Backend non configuré.');
     }
-
-    final response = await _client.auth.signUp(
-      email: email.trim(),
-      password: password,
-      data: {
-        'nom': nom.trim(),
-        'prenom': prenom.trim(),
-        'telephone': telephone.trim(),
-        'role': 'user',
-      },
-    );
-
-    final userId = response.user?.id;
-    if (userId == null) {
-      throw const RoadPassAuthException(
-        'Impossible de créer le compte utilisateur.',
+    try {
+      final response = await _client.auth.signUp(
+        email: email.trim(),
+        password: password,
+        data: {
+          'nom': nom.trim(),
+          'prenom': prenom.trim(),
+          'telephone': telephone.trim(),
+        },
       );
+      final authUser = response.user;
+      if (authUser == null) {
+        throw const RoadPassAuthException(
+          'Impossible de créer le compte utilisateur.',
+        );
+      }
+      final profile = await _fetchUserProfile(authUser.id);
+      _setSessionState(user: profile, initialized: true);
+      return profile;
+    } on AuthException catch (error) {
+      throw RoadPassAuthException('Inscription impossible : ${error.message}');
     }
-
-    final profile = await _fetchUserProfile(userId);
-    _currentUser = profile;
-    return profile;
-  }
-
-  @override
-  Future<RoadUser> professionalLogin(String email, String password) async {
-    final user = await login(email, password);
-    if (user.role == UserRole.user) {
-      throw const RoadPassAuthException(
-        'Ce compte n’a pas accès à l’espace professionnel.',
-      );
-    }
-    return user;
   }
 
   @override
@@ -107,34 +180,37 @@ class SupabaseAuthService implements AuthService {
     if (!AppConfig.isConfigured) {
       throw const RoadPassAuthException('Backend non configuré.');
     }
-
-    final currentUser = _currentUser;
-    if (currentUser == null || currentUser.role != UserRole.admin) {
+    if (_currentUser?.role != UserRole.admin) {
       throw const RoadPassAuthException(
         'Seul un administrateur peut créer un compte agent.',
       );
     }
-
-    final response = await _client.functions.invoke(
-      'create-agent',
-      body: {
-        'nom': nom.trim(),
-        'prenom': prenom.trim(),
-        'email': email.trim(),
-        'telephone': telephone.trim(),
-        'password': password,
-      },
-    );
-
-    final data = response.data;
-    final userId = data is Map ? data['id']?.toString() : null;
-    if (userId == null) {
+    try {
+      final response = await _client.functions.invoke(
+        'create-agent',
+        body: {
+          'nom': nom.trim(),
+          'prenom': prenom.trim(),
+          'email': email.trim(),
+          'telephone': telephone.trim(),
+          'password': password,
+        },
+      );
+      final data = response.data;
+      final userId = data is Map ? data['id']?.toString() : null;
+      if (userId == null) {
+        throw const RoadPassAuthException(
+          'La création du compte agent a échoué.',
+        );
+      }
+      return _fetchUserProfile(userId);
+    } on RoadPassAuthException {
+      rethrow;
+    } catch (_) {
       throw const RoadPassAuthException(
         'La création du compte agent a échoué.',
       );
     }
-
-    return _fetchUserProfile(userId);
   }
 
   @override
@@ -152,24 +228,17 @@ class SupabaseAuthService implements AuthService {
     if (current == null) {
       throw const RoadPassAuthException('Vous devez vous connecter.');
     }
-
     final normalizedEmail = email.trim().toLowerCase();
-
     try {
-      // The profile is updated first with the current Auth email. This avoids
-      // recording an unconfirmed email when secure email change is enabled.
       await _updateOwnProfile(
         nom: nom,
         prenom: prenom,
         email: current.email,
         telephone: telephone,
       );
-
       var confirmedEmail = current.email;
-      final hasSensitiveChange =
-          password?.isNotEmpty == true || normalizedEmail != current.email;
-      if (hasSensitiveChange) {
-        final authResponse = await _client.auth.updateUser(
+      if (password?.isNotEmpty == true || normalizedEmail != current.email) {
+        final response = await _client.auth.updateUser(
           UserAttributes(
             email: normalizedEmail == current.email ? null : normalizedEmail,
             password: password?.isNotEmpty == true ? password : null,
@@ -180,16 +249,8 @@ class SupabaseAuthService implements AuthService {
             },
           ),
         );
-        if (authResponse.user == null) {
-          throw const RoadPassAuthException(
-            'La mise à jour du compte a échoué.',
-          );
-        }
-        confirmedEmail = authResponse.user!.email ?? current.email;
+        confirmedEmail = response.user?.email ?? current.email;
       }
-
-      // With email confirmation enabled, confirmedEmail remains the old email
-      // until the user validates the link. Otherwise keep both stores aligned.
       if (confirmedEmail != current.email) {
         await _updateOwnProfile(
           nom: nom,
@@ -198,23 +259,23 @@ class SupabaseAuthService implements AuthService {
           telephone: telephone,
         );
       }
-
-      _currentUser = current.copyWith(
+      final updated = current.copyWith(
         nom: nom.trim(),
         prenom: prenom.trim(),
         email: confirmedEmail,
         telephone: telephone.trim(),
       );
-      return _currentUser!;
+      _setSessionState(user: updated, initialized: true);
+      return updated;
     } on AuthException catch (error) {
       throw RoadPassAuthException(
         'Erreur d’authentification : ${error.message}',
       );
     } on RoadPassAuthException {
       rethrow;
-    } catch (error) {
-      throw RoadPassAuthException(
-        'Impossible de mettre à jour le profil : $error',
+    } catch (_) {
+      throw const RoadPassAuthException(
+        'La mise à jour du profil a échoué.',
       );
     }
   }
@@ -236,44 +297,37 @@ class SupabaseAuthService implements AuthService {
 
   @override
   Future<void> logout() async {
-    await _client.auth.signOut();
-    _currentUser = null;
+    if (AppConfig.isConfigured) {
+      await _client.auth.signOut();
+    }
+    _setSessionState(user: null, initialized: true);
   }
 
   Future<RoadUser> _fetchUserProfile(String userId) async {
     final response = await _client
         .from('profiles')
-        .select()
+        .select('id, nom, prenom, email, telephone, role, created_at')
         .eq('id', userId)
         .maybeSingle();
     if (response == null) {
-      final current = _client.auth.currentUser;
-      final role = current?.userMetadata?['role'] ?? 'user';
-      return RoadUser(
-        id: userId,
-        nom: (current?.userMetadata?['nom'] ?? 'Utilisateur').toString(),
-        prenom: (current?.userMetadata?['prenom'] ?? 'Client').toString(),
-        email: current?.email ?? '',
-        telephone: (current?.userMetadata?['telephone'] ?? '').toString(),
-        role: RoadUser.parseRole(role),
-        createdAt: DateTime.now(),
+      throw const RoadPassAuthException(
+        'Votre profil RoadPass est introuvable. Contactez le support.',
       );
     }
-
-    final role = response['role'] ?? 'user';
     return RoadUser(
       id: userId,
-      nom: (response['nom'] ?? 'Utilisateur').toString(),
-      prenom: (response['prenom'] ?? 'Client').toString(),
+      nom: (response['nom'] ?? '').toString(),
+      prenom: (response['prenom'] ?? '').toString(),
       email: (response['email'] ?? '').toString(),
       telephone: (response['telephone'] ?? '').toString(),
-      role: RoadUser.parseRole(role),
-      createdAt:
-          DateTime.tryParse(
-            (response['created_at'] ?? DateTime.now().toIso8601String())
-                .toString(),
-          ) ??
-          DateTime.now(),
+      role: RoadUser.parseRole((response['role'] ?? 'user').toString()),
+      createdAt: DateTime.tryParse((response['created_at'] ?? '').toString()),
     );
+  }
+
+  @override
+  void dispose() {
+    unawaited(_authSubscription?.cancel());
+    super.dispose();
   }
 }

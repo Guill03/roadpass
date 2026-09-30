@@ -10,7 +10,9 @@ import 'services/mock_auth_service.dart';
 import 'services/supabase_auth_service.dart';
 
 class RoadPassApp extends StatefulWidget {
-  const RoadPassApp({super.key});
+  const RoadPassApp({super.key, this.authService});
+
+  final AuthService? authService;
 
   @override
   State<RoadPassApp> createState() => _RoadPassAppState();
@@ -23,9 +25,10 @@ class _RoadPassAppState extends State<RoadPassApp> {
   @override
   void initState() {
     super.initState();
-    _authService = AppConfig.isConfigured
+    _authService = widget.authService ??
+        (AppConfig.isConfigured
         ? SupabaseAuthService()
-        : MockAuthService();
+        : MockAuthService());
     _appRouter = AppRouter(_authService);
     unawaited(_authService.initialize());
   }

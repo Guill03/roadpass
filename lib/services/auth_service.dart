@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../models/user.dart';
 
 class RoadPassAuthException implements Exception {
@@ -9,8 +11,10 @@ class RoadPassAuthException implements Exception {
   String toString() => message;
 }
 
-abstract class AuthService {
+abstract class AuthService extends ChangeNotifier {
   RoadUser? get currentUser;
+
+  bool get isInitialized;
 
   Future<void> initialize();
 

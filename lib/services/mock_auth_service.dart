@@ -1,14 +1,12 @@
 import '../models/user.dart';
 import 'auth_service.dart';
 
-class MockAuthService implements AuthService {
-  factory MockAuthService() => instance;
-
-  MockAuthService._();
-
-  static final MockAuthService instance = MockAuthService._();
+class MockAuthService extends AuthService {
+  MockAuthService({RoadUser? restoredUser}) : _restoredUser = restoredUser;
 
   RoadUser? _currentUser;
+  RoadUser? _restoredUser;
+  bool _isInitialized = false;
 
   final Map<String, ({RoadUser user, String password})> _accounts = {
     'user@roadpass.test': (
@@ -50,21 +48,31 @@ class MockAuthService implements AuthService {
   RoadUser? get currentUser => _currentUser;
 
   @override
+  bool get isInitialized => _isInitialized;
+
+  @override
   Future<void> initialize() async {
-    _currentUser = null;
+    _currentUser = _restoredUser;
+    _isInitialized = true;
+    notifyListeners();
   }
 
   @override
   Future<RoadUser> login(String email, String password) async {
     final account = _accounts[email.trim().toLowerCase()];
-    if (account == null ||
-        account.password != password ||
-        account.user.role != UserRole.user) {
+    if (account == null || account.password != password) {
       throw const RoadPassAuthException(
         'Adresse e-mail ou mot de passe incorrect.',
       );
     }
+    if (account.user.role != UserRole.user) {
+      throw const RoadPassAuthException(
+        'Utilisez l’accès professionnel pour ce compte.',
+      );
+    }
     _currentUser = account.user;
+    _restoredUser = account.user;
+    notifyListeners();
     return account.user;
   }
 
@@ -79,6 +87,8 @@ class MockAuthService implements AuthService {
       );
     }
     _currentUser = account.user;
+    _restoredUser = account.user;
+    notifyListeners();
     return account.user;
   }
 
@@ -106,6 +116,8 @@ class MockAuthService implements AuthService {
     );
     _accounts[normalizedEmail] = (user: user, password: password);
     _currentUser = user;
+    _restoredUser = user;
+    notifyListeners();
     return user;
   }
 
@@ -158,7 +170,9 @@ class MockAuthService implements AuthService {
     final normalizedEmail = email.trim().toLowerCase();
     final existing = _accounts[normalizedEmail];
     if (existing != null && existing.user.id != current.id) {
-      throw const RoadPassAuthException('Cette adresse e-mail est déjà utilisée.');
+      throw const RoadPassAuthException(
+        'Cette adresse e-mail est déjà utilisée.',
+      );
     }
 
     final updated = current.copyWith(
@@ -175,9 +189,15 @@ class MockAuthService implements AuthService {
           : previousAccount!.password,
     );
     _currentUser = updated;
+    _restoredUser = updated;
+    notifyListeners();
     return updated;
   }
 
   @override
-  Future<void> logout() async => _currentUser = null;
+  Future<void> logout() async {
+    _currentUser = null;
+    _restoredUser = null;
+    notifyListeners();
+  }
 }

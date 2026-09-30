@@ -17,11 +17,15 @@ class AppRouter {
 
   late final GoRouter router = GoRouter(
     initialLocation: '/',
+    refreshListenable: authService,
     redirect: (context, state) {
       final path = state.uri.path;
       final user = authService.currentUser;
       final isAuthRoute = path == '/' || path.startsWith('/auth');
 
+      if (!authService.isInitialized) {
+        return isAuthRoute ? null : '/auth';
+      }
       if (user == null && !isAuthRoute) return '/auth';
       if (user != null && isAuthRoute) return _dashboardFor(user.role);
 

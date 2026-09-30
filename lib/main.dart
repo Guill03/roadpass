@@ -10,8 +10,7 @@ Future<void> main() async {
   if (AppConfig.isConfigured) {
     await Supabase.initialize(
       url: AppConfig.supabaseUrl,
-      publishableKey: AppConfig
-          .supabaseAnonKey, 
+      publishableKey: AppConfig.supabasePublishableKey,
     );
   } else {
     // Optionnel : Ajouter un log ou lever une alerte en mode développement

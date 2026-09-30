@@ -69,9 +69,9 @@ class _ProfileSectionState extends State<ProfileSection> {
       );
     } on RoadPassAuthException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       }
     } catch (_) {
       if (mounted) {
@@ -90,6 +90,17 @@ class _ProfileSectionState extends State<ProfileSection> {
     UserRole.admin => 'Administrateur',
   };
 
+  String get _avatarInitials {
+    final firstName = _user.prenom.trim();
+    final lastName = _user.nom.trim();
+
+    final initials = <String>[];
+    if (firstName.isNotEmpty) initials.add(firstName[0].toUpperCase());
+    if (lastName.isNotEmpty) initials.add(lastName[0].toUpperCase());
+
+    return initials.isEmpty ? '?' : initials.join();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -105,7 +116,7 @@ class _ProfileSectionState extends State<ProfileSection> {
                   radius: 32,
                   backgroundColor: Colors.white24,
                   child: Text(
-                    _user.prenom.isEmpty ? '?' : _user.prenom[0].toUpperCase(),
+                    _avatarInitials,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 26,
@@ -120,23 +131,27 @@ class _ProfileSectionState extends State<ProfileSection> {
                     children: [
                       Text(
                         _user.fullName,
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
                       const SizedBox(height: 5),
                       Text(
                         _user.email,
                         style: const TextStyle(color: Color(0xFFD5E7F4)),
                       ),
+                      Chip(
+                        label: Text(_roleLabel),
+                        avatar: const Icon(
+                          Icons.verified_user_outlined,
+                          size: 18,
+                        ),
+                        backgroundColor: Colors.white,
+                      ),
                     ],
                   ),
-                ),
-                Chip(
-                  label: Text(_roleLabel),
-                  avatar: const Icon(Icons.verified_user_outlined, size: 18),
-                  backgroundColor: Colors.white,
                 ),
               ],
             ),
@@ -173,7 +188,9 @@ class _ProfileSectionState extends State<ProfileSection> {
                         TextFormField(
                           controller: _prenom,
                           textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(labelText: 'Prénom'),
+                          decoration: const InputDecoration(
+                            labelText: 'Prénom',
+                          ),
                           validator: _required,
                         ),
                         TextFormField(
@@ -185,15 +202,20 @@ class _ProfileSectionState extends State<ProfileSection> {
                         TextFormField(
                           controller: _email,
                           keyboardType: TextInputType.emailAddress,
-                          decoration: const InputDecoration(labelText: 'Adresse e-mail'),
-                          validator: (value) => value == null || !value.contains('@')
+                          decoration: const InputDecoration(
+                            labelText: 'Adresse e-mail',
+                          ),
+                          validator: (value) =>
+                              value == null || !value.contains('@')
                               ? 'Saisissez une adresse e-mail valide.'
                               : null,
                         ),
                         TextFormField(
                           controller: _telephone,
                           keyboardType: TextInputType.phone,
-                          decoration: const InputDecoration(labelText: 'Téléphone'),
+                          decoration: const InputDecoration(
+                            labelText: 'Téléphone',
+                          ),
                           validator: _required,
                         ),
                       ];
@@ -231,14 +253,23 @@ class _ProfileSectionState extends State<ProfileSection> {
                     obscureText: !_showPassword,
                     decoration: InputDecoration(
                       labelText: 'Nouveau mot de passe (facultatif)',
-                      helperText: 'Laissez vide pour conserver votre mot de passe actuel.',
+                      helperText:
+                          'Laissez vide pour conserver votre mot de passe actuel.',
                       suffixIcon: IconButton(
-                        tooltip: _showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe',
-                        onPressed: () => setState(() => _showPassword = !_showPassword),
-                        icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility),
+                        tooltip: _showPassword
+                            ? 'Masquer le mot de passe'
+                            : 'Afficher le mot de passe',
+                        onPressed: () =>
+                            setState(() => _showPassword = !_showPassword),
+                        icon: Icon(
+                          _showPassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
                       ),
                     ),
-                    validator: (value) => value != null && value.isNotEmpty && value.length < 8
+                    validator: (value) =>
+                        value != null && value.isNotEmpty && value.length < 8
                         ? 'Le mot de passe doit contenir au moins 8 caractères.'
                         : null,
                   ),

@@ -104,12 +104,15 @@ class _DashboardShellState extends State<DashboardShell> {
                   children: [
                     Icon(Icons.route, color: Colors.white),
                     SizedBox(width: 10),
-                    Text(
-                      'RoadPass',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
+                    Flexible(
+                      child: Text(
+                        'RoadPass',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],

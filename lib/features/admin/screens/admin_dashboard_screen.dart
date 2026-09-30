@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../../core/widgets/dashboard_shell.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/toll_catalog_service.dart';
+import 'toll_posts_admin_screen.dart';
+import 'toll_tariffs_admin_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key, required this.authService});
@@ -14,9 +17,18 @@ class AdminDashboardScreen extends StatelessWidget {
       authService: authService,
       title: 'Espace administrateur',
       subtitle: 'Une vue structurée de la plateforme RoadPass.',
-      contentBuilder: (context, section) => section == 'Agents'
-          ? _CreateAgentPanel(authService: authService)
-          : const SizedBox.shrink(),
+      contentBuilder: (context, section) {
+        switch (section) {
+          case 'Agents':
+            return _CreateAgentPanel(authService: authService);
+          case 'Postes de péage':
+            return TollPostsAdminScreen(catalogService: TollCatalogService());
+          case 'Tarifs':
+            return TollTariffsAdminScreen(catalogService: TollCatalogService());
+          default:
+            return const SizedBox.shrink();
+        }
+      },
       items: const [
         DashboardItem('Tableau de bord', Icons.dashboard_outlined),
         DashboardItem('Utilisateurs', Icons.people_outline),

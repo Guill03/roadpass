@@ -16,7 +16,7 @@ le code source :
 ```powershell
 flutter run -d chrome `
 	--dart-define=SUPABASE_URL=https://<project-ref>.supabase.co `
-	--dart-define=SUPABASE_ANON_KEY=sb_publishable_...
+	--dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
 Vérification :
