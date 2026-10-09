@@ -8,12 +8,13 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:roadpass/app.dart';
+import 'package:roadpass/services/mock_auth_service.dart';
 
 void main() {
   testWidgets('RoadPass affiche l’accueil d’authentification', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const RoadPassApp());
+    await tester.pumpWidget(RoadPassApp(authService: MockAuthService()));
 
     expect(find.text('RoadPass'), findsOneWidget);
     expect(find.text('Se connecter'), findsOneWidget);

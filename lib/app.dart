@@ -25,10 +25,9 @@ class _RoadPassAppState extends State<RoadPassApp> {
   @override
   void initState() {
     super.initState();
-    _authService = widget.authService ??
-        (AppConfig.isConfigured
-        ? SupabaseAuthService()
-        : MockAuthService());
+    _authService =
+        widget.authService ??
+        (AppConfig.isSupabaseMode ? SupabaseAuthService() : MockAuthService());
     _appRouter = AppRouter(_authService);
     unawaited(_authService.initialize());
   }

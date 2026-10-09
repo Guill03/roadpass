@@ -113,6 +113,11 @@ class _LoginScreenState extends State<LoginScreen> {
               onPressed: () => context.go('/auth/register'),
               child: const Text('Créer un compte utilisateur'),
             ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => context.go('/auth/'),
+              child: const Text('Retour à l\'accueil'),
+            ),
           ],
         ),
       ),

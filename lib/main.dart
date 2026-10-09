@@ -6,15 +6,13 @@ import 'core/config/app_config.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  AppConfig.validate();
 
-  if (AppConfig.isConfigured) {
+  if (AppConfig.isSupabaseMode) {
     await Supabase.initialize(
       url: AppConfig.supabaseUrl,
       publishableKey: AppConfig.supabasePublishableKey,
     );
-  } else {
-    // Optionnel : Ajouter un log ou lever une alerte en mode développement
-    debugPrint('Attention : Supabase n\'a pas pu être configuré.');
   }
 
   runApp(const RoadPassApp());

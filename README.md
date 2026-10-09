@@ -4,20 +4,28 @@ Socle Flutter multi-plateforme pour une future plateforme de gestion des passage
 
 ## Lancer le projet
 
+Par défaut, l’application utilise l’authentification mock en mémoire :
+
 ```bash
 flutter pub get
 flutter run -d chrome
 # ou : flutter run -d windows
 ```
 
-Pour utiliser Supabase, passe les valeurs au lancement sans les enregistrer dans
-le code source :
+Pour utiliser Supabase, sélectionne explicitement ce mode et passe les valeurs
+au lancement. Elles ne sont pas enregistrées dans le code source :
 
 ```powershell
 flutter run -d chrome `
+	--dart-define=ROADPASS_AUTH_MODE=supabase `
 	--dart-define=SUPABASE_URL=https://<project-ref>.supabase.co `
 	--dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
+
+Le mode Supabase échoue au démarrage si l’URL ou la clé publishable manque.
+Une valeur `ROADPASS_AUTH_MODE` autre que `mock` ou `supabase` est également
+refusée. La clé publishable est une configuration client, pas un secret : les
+autorisations doivent rester appliquées par RLS et côté serveur.
 
 Vérification :
 
@@ -28,7 +36,8 @@ flutter test
 
 ## Comptes de démonstration
 
-Tous les comptes utilisent le mot de passe `RoadPass123!`.
+En mode mock uniquement, les comptes suivants utilisent le mot de passe
+`RoadPass123!`.
 
 | Espace | Identifiant |
 | --- | --- |
@@ -64,7 +73,6 @@ d’agents suivantes se font depuis la section « Agents » du dashboard admin.
 - `services/` : contrats et implémentations locales remplaçables.
 - `features/` : écrans regroupés par rôle ou parcours.
 
-Sans `--dart-define`, l’application utilise le service mock en mémoire. Avec les
-variables Supabase, elle utilise l’authentification réelle et les profils
-Postgres. Aucun paiement, calcul de péage, itinéraire ou QR définitif n’est
-encore implémenté.
+Le mode mock est isolé en mémoire et n’appelle pas Supabase. En mode Supabase,
+l’authentification et les profils utilisent le backend configuré. Aucun
+paiement, calcul d’itinéraire ou parcours QR définitif n’est encore implémenté.

@@ -236,7 +236,7 @@ class VehicleService extends VehicleServiceBase {
       throw const VehicleServiceException('Utilisateur non authentifié.');
     }
 
-    final current = await getVehicle(id);
+    await getVehicle(id);
 
     try {
       final response = await _client
