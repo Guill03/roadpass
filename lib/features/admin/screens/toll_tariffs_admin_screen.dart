@@ -466,7 +466,7 @@ class _CreateTariffFormState extends State<_CreateTariffForm> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               SizedBox(
-                width: 240,
+                width: 320,
                 child: DropdownButtonFormField<VehicleCategory>(
                   initialValue: _category,
                   decoration: const InputDecoration(labelText: 'Catégorie'),

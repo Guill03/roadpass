@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-
+import 'package:roadpass/features/agent/screens/agent_verification_screen.dart';
 import '../../../core/widgets/dashboard_shell.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/passage_service.dart';
 
 class AgentDashboardScreen extends StatelessWidget {
   const AgentDashboardScreen({super.key, required this.authService});
@@ -21,6 +22,20 @@ class AgentDashboardScreen extends StatelessWidget {
         DashboardItem('Historique', Icons.history),
         DashboardItem('Profil', Icons.person_outline),
       ],
+      contentBuilder: (context, label) {
+        switch (label) {
+          case 'Tableau de bord':
+            return const Center(child: Text('Tableau de bord de l\'agent'));
+          case 'Scanner QR':
+            return AgentVerificationScreen(passageService: PassageService());
+          case 'Transactions':
+            return const Center(child: Text('Liste des transactions'));
+          case 'Historique':
+            return const Center(child: Text('Historique des passages'));
+          default:
+            return const SizedBox.shrink();
+        }
+      },
     );
   }
 }

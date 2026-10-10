@@ -53,6 +53,17 @@ class _DashboardShellState extends State<DashboardShell> {
         final isMobile = constraints.maxWidth < AppConstants.mobileBreakpoint;
         return Scaffold(
           appBar: AppBar(
+            leading: isMobile
+                ? Builder(
+                    builder: (context) {
+                      return IconButton(
+                        onPressed: () => Scaffold.of(context).openDrawer(),
+                        icon: const Icon(Icons.menu),
+                        tooltip: 'Menu',
+                      );
+                    },
+                  )
+                : null,
             title: Text(widget.items[_selectedIndex].label),
             actions: [
               if (!isMobile)
@@ -66,6 +77,51 @@ class _DashboardShellState extends State<DashboardShell> {
                 icon: const Icon(Icons.logout),
               ),
             ],
+          ),
+          drawer: Drawer(
+            child: Column(
+              children: [
+                DrawerHeader(
+                  decoration: const BoxDecoration(color: AppTheme.navy),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.route, color: Colors.white),
+                      const SizedBox(width: 10),
+                      Flexible(
+                        child: Text(
+                          widget.title,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: widget.items.length,
+                    itemBuilder: (context, index) => _navItem(index),
+                  ),
+                ),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: ListTile(
+                      leading: const Icon(Icons.logout, color: Colors.black),
+                      title: Text(
+                        'Se déconnecter'.toUpperCase(),
+                        style: TextStyle(color: Colors.black),
+                      ),
+                      onTap: _logout,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           body: isMobile ? _buildMobileBody() : _buildDesktopBody(),
           bottomNavigationBar: isMobile

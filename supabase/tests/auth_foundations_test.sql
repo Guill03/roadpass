@@ -9,6 +9,8 @@ values
   ('00000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'admin@roadpass.test'),
   ('00000000-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'other@roadpass.test');
 
+select set_config('request.jwt.claim.role', 'service_role', true);
+
 update public.profiles
 set role = 'agent'
 where id = '00000000-0000-0000-0000-000000000002';
@@ -16,6 +18,8 @@ where id = '00000000-0000-0000-0000-000000000002';
 update public.profiles
 set role = 'admin'
 where id = '00000000-0000-0000-0000-000000000003';
+
+select set_config('request.jwt.claim.role', 'authenticated', true);
 
 select ok(
   not has_table_privilege('anon', 'public.profiles', 'select'),

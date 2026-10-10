@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/dashboard_shell.dart';
+import '../../../services/admin_operations_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/toll_catalog_service.dart';
+import 'exemptions_admin_screen.dart';
+import 'prepaid_accounts_admin_screen.dart';
 import 'toll_posts_admin_screen.dart';
 import 'toll_tariffs_admin_screen.dart';
 
@@ -25,6 +28,10 @@ class AdminDashboardScreen extends StatelessWidget {
             return TollPostsAdminScreen(catalogService: TollCatalogService());
           case 'Tarifs':
             return TollTariffsAdminScreen(catalogService: TollCatalogService());
+          case 'Exemptions':
+            return ExemptionsAdminScreen(service: AdminOperationsService());
+          case 'Comptes prépayés':
+            return PrepaidAccountsAdminScreen(service: AdminOperationsService());
           default:
             return const SizedBox.shrink();
         }
@@ -35,6 +42,8 @@ class AdminDashboardScreen extends StatelessWidget {
         DashboardItem('Agents', Icons.badge_outlined),
         DashboardItem('Postes de péage', Icons.location_on_outlined),
         DashboardItem('Tarifs', Icons.sell_outlined),
+        DashboardItem('Exemptions', Icons.verified_outlined),
+        DashboardItem('Comptes prépayés', Icons.account_balance_wallet_outlined),
         DashboardItem('Transactions', Icons.receipt_long_outlined),
         DashboardItem('Profil', Icons.person_outline),
         DashboardItem('Rapports / Statistiques', Icons.bar_chart_outlined),

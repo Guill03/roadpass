@@ -2,9 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../../../core/widgets/dashboard_shell.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/payment_service.dart';
+import '../../../services/prepaid_service.dart';
+import '../../../services/receipt_service.dart';
 import '../../../services/toll_catalog_service.dart';
+import '../../../services/transaction_service.dart';
 import '../../../services/vehicle_service.dart';
+import 'payments_screen.dart';
 import 'toll_catalog_screen.dart';
+import 'transactions_screen.dart';
 import 'vehicle_management_screen.dart';
 
 class UserDashboardScreen extends StatelessWidget {
@@ -23,6 +29,7 @@ class UserDashboardScreen extends StatelessWidget {
         DashboardItem('Accueil', Icons.home_outlined),
         DashboardItem('Mes véhicules', Icons.directions_car_outlined),
         DashboardItem('Postes & tarifs', Icons.sell_outlined),
+        DashboardItem('Mes passages', Icons.alt_route),
         DashboardItem('Paiements', Icons.credit_card_outlined),
         DashboardItem('Historique', Icons.history),
         DashboardItem('Profil', Icons.person_outline),
@@ -37,6 +44,20 @@ class UserDashboardScreen extends StatelessWidget {
             );
           case 'Postes & tarifs':
             return TollCatalogScreen(catalogService: TollCatalogService());
+          case 'Mes passages':
+            return TransactionsScreen(
+              vehicleService: VehicleService(),
+              catalogService: TollCatalogService(),
+              transactionService: TransactionService(),
+              paymentService: PaymentService(),
+              receiptService: ReceiptService(),
+              prepaidService: PrepaidService(),
+            );
+          case 'Paiements':
+            return PaymentsScreen(
+              paymentService: PaymentService(),
+              transactionService: TransactionService(),
+            );
           default:
             return const SizedBox.shrink();
         }

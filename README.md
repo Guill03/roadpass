@@ -4,7 +4,9 @@ Socle Flutter multi-plateforme pour une future plateforme de gestion des passage
 
 ## Lancer le projet
 
-Par défaut, l’application utilise l’authentification mock en mémoire :
+Sans configuration Supabase, l’application utilise l’authentification mock en
+mémoire. Si `.env` contient `SUPABASE_URL` et `SUPABASE_PUBLISHABLE_KEY`, le
+mode Supabase est sélectionné automatiquement.
 
 ```bash
 flutter pub get
@@ -12,20 +14,21 @@ flutter run -d chrome
 # ou : flutter run -d windows
 ```
 
-Pour utiliser Supabase, sélectionne explicitement ce mode et passe les valeurs
-au lancement. Elles ne sont pas enregistrées dans le code source :
+La configuration locale est chargée depuis `.env` (fichier ignoré par Git et
+inclus comme asset Flutter). Exemple de noms de variables, avec des valeurs
+propres au projet :
 
-```powershell
-flutter run -d chrome `
-	--dart-define=ROADPASS_AUTH_MODE=supabase `
-	--dart-define=SUPABASE_URL=https://<project-ref>.supabase.co `
-	--dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+```dotenv
+ROADPASS_AUTH_MODE=supabase
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
-Le mode Supabase échoue au démarrage si l’URL ou la clé publishable manque.
-Une valeur `ROADPASS_AUTH_MODE` autre que `mock` ou `supabase` est également
-refusée. La clé publishable est une configuration client, pas un secret : les
-autorisations doivent rester appliquées par RLS et côté serveur.
+`ROADPASS_AUTH_MODE=mock` force le mock même si les deux valeurs Supabase sont
+présentes. `--dart-define=ROADPASS_AUTH_MODE=...` a priorité sur `.env`. Le mode
+Supabase échoue au démarrage si l’URL ou la clé publishable manque. La clé
+publishable est une configuration client, pas un secret : les autorisations
+doivent rester appliquées par RLS et côté serveur.
 
 Vérification :
 
