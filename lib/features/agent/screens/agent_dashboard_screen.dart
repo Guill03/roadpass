@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:roadpass/features/agent/screens/agent_verification_screen.dart';
+import 'package:roadpass/services/toll_catalog_service.dart';
 import '../../../core/widgets/dashboard_shell.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/passage_service.dart';
@@ -27,7 +28,10 @@ class AgentDashboardScreen extends StatelessWidget {
           case 'Tableau de bord':
             return const Center(child: Text('Tableau de bord de l\'agent'));
           case 'Scanner QR':
-            return AgentVerificationScreen(passageService: PassageService());
+            return AgentVerificationScreen(
+              passageService: PassageService(),
+              catalogService: TollCatalogService(),
+            );
           case 'Transactions':
             return const Center(child: Text('Liste des transactions'));
           case 'Historique':

@@ -54,7 +54,11 @@ class ScannedReceipt {
     required this.model,
     required this.categoryCode,
     required this.categoryName,
+    required this.postId,
     required this.postName,
+    required this.destinationName,
+    required this.postsCrossed,
+    required this.passedCount,
     required this.tripType,
     required this.amountDue,
     required this.currency,
@@ -66,10 +70,20 @@ class ScannedReceipt {
   final String model;
   final String categoryCode;
   final String categoryName;
+  /// Poste de contrôle pour lequel le scan a été fait.
+  final String postId;
   final String postName;
+  final String destinationName;
+
+  /// Postes du trajet, et nombre déjà franchis avec ce justificatif.
+  final int postsCrossed;
+  final int passedCount;
   final TripType tripType;
   final double amountDue;
   final String currency;
+
+  static int _int(dynamic value) =>
+      value is num ? value.toInt() : int.tryParse('$value') ?? 0;
 
   factory ScannedReceipt.fromMap(Map<String, dynamic> map) {
     final amount = map['amount_due'];
@@ -80,7 +94,11 @@ class ScannedReceipt {
       model: (map['model'] ?? '').toString(),
       categoryCode: (map['category_code'] ?? '').toString(),
       categoryName: (map['category_name'] ?? '').toString(),
+      postId: (map['post_id'] ?? '').toString(),
       postName: (map['post_name'] ?? '').toString(),
+      destinationName: (map['destination_name'] ?? '').toString(),
+      postsCrossed: _int(map['posts_crossed']),
+      passedCount: _int(map['passed_count']),
       tripType: TripType.fromValue((map['trip_type'] ?? '').toString()),
       amountDue: amount is num
           ? amount.toDouble()

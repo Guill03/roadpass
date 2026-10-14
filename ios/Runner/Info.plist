@@ -16,6 +16,8 @@
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>roadpass</string>
+	<key> NSCameraUsageDescription</key>
+	<string>La caméra sert à lire le code QR du justificatif</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

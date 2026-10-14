@@ -5,6 +5,7 @@ class TollPost {
     required this.name,
     required this.location,
     required this.isActive,
+    this.sequence,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -14,6 +15,10 @@ class TollPost {
   final String name;
   final String location;
   final bool isActive;
+
+  /// Position sur l'axe Kinshasa-Matadi (1 = premier poste en sortant de
+  /// Kinshasa). Nul tant que l'ordre n'est pas défini.
+  final int? sequence;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -24,6 +29,9 @@ class TollPost {
       name: (map['name'] ?? '').toString(),
       location: (map['location'] ?? '').toString(),
       isActive: map['is_active'] == true || map['is_active'] == 'true',
+      sequence: map['sequence'] is num
+          ? (map['sequence'] as num).toInt()
+          : int.tryParse('${map['sequence'] ?? ''}'),
       createdAt: _parseDate(map['created_at']) ?? DateTime.now(),
       updatedAt: _parseDate(map['updated_at']) ?? DateTime.now(),
     );

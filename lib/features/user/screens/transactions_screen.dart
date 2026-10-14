@@ -6,6 +6,7 @@ import '../../../models/receipt.dart';
 import '../../../models/toll_post.dart';
 import '../../../models/toll_tariff.dart';
 import '../../../models/toll_transaction.dart';
+import '../../../models/transaction_quote.dart';
 import '../../../models/vehicle.dart';
 import '../../../models/prepaid_account.dart';
 import '../../../services/payment_service.dart';
@@ -51,12 +52,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   PrepaidAccount? _account;
 
   Vehicle? _vehicle;
-  TollPost? _post;
-  TripType _tripType = TripType.longueDistance;
+  TollPost? _origin;
+  TollPost? _destination;
 
   bool _previewLoading = false;
-  TollTariff? _previewTariff;
-  bool _previewDone = false;
+  TransactionQuote? _quote;
+  String? _quoteError;
 
   @override
   void initState() {
@@ -93,8 +94,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         _vehicle = vehicles.any((v) => v.id == _vehicle?.id)
             ? vehicles.firstWhere((v) => v.id == _vehicle!.id)
             : null;
-        _post = posts.any((p) => p.id == _post?.id)
-            ? posts.firstWhere((p) => p.id == _post!.id)
+        _origin = posts.any((p) => p.id == _origin?.id)
+            ? posts.firstWhere((p) => p.id == _origin!.id)
+            : (posts.length == 1 ? posts.first : null);
+        _destination = posts.any((p) => p.id == _destination?.id)
+            ? posts.firstWhere((p) => p.id == _destination!.id)
             : (posts.length == 1 ? posts.first : null);
         _loading = false;
       });
@@ -108,36 +112,37 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     }
   }
 
-  /// Aperçu informatif du montant. Le montant réellement enregistré est
-  /// recalculé par la base au moment de la création.
+  /// Devis calculé par la base (même règle que l'enregistrement) : type de
+  /// trajet déduit des postes choisis, montant, exemption éventuelle.
   Future<void> _refreshPreview() async {
     final vehicle = _vehicle;
-    final post = _post;
-    if (vehicle == null || post == null || vehicle.categoryId == null) {
+    final origin = _origin;
+    final destination = _destination;
+    if (vehicle == null || origin == null || destination == null) {
       setState(() {
-        _previewTariff = null;
-        _previewDone = false;
+        _quote = null;
+        _quoteError = null;
       });
       return;
     }
     setState(() => _previewLoading = true);
     try {
-      final tariff = await widget.catalogService.findApplicableTariff(
-        tollPostId: post.id,
-        categoryId: vehicle.categoryId!,
-        tripType: _tripType,
-        at: DateTime.now(),
+      final quote = await widget.transactionService.quote(
+        vehicleId: vehicle.id,
+        originPostId: origin.id,
+        destinationPostId: destination.id,
       );
       if (!mounted) return;
       setState(() {
-        _previewTariff = tariff;
-        _previewDone = true;
+        _quote = quote;
+        _quoteError = null;
         _previewLoading = false;
       });
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = error.toString();
+        _quote = null;
+        _quoteError = error.toString();
         _previewLoading = false;
       });
     }
@@ -145,9 +150,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   Future<void> _submit() async {
     final vehicle = _vehicle;
-    final post = _post;
-    if (vehicle == null || post == null) {
-      setState(() => _error = 'Choisissez un véhicule et un poste de péage.');
+    final origin = _origin;
+    final destination = _destination;
+    if (vehicle == null || origin == null || destination == null) {
+      setState(() => _error = 'Choisissez un véhicule et vos postes de péage.');
       return;
     }
     setState(() {
@@ -157,14 +163,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     try {
       await widget.transactionService.createTransaction(
         vehicleId: vehicle.id,
-        tollPostId: post.id,
-        tripType: _tripType,
+        originPostId: origin.id,
+        destinationPostId: destination.id,
       );
       await _load();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passage enregistré.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Passage enregistré.')));
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
@@ -251,9 +257,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         'success' => 'Paiement réussi (simulation).',
         _ => 'Paiement refusé (simulation).',
       };
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     }
@@ -312,6 +318,25 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return 'Véhicule';
   }
 
+  List<DropdownMenuItem<TollPost>> _postItems() => _posts
+      .map(
+        (p) => DropdownMenuItem(
+          value: p,
+          child: Text(
+            p.sequence != null ? '${p.sequence}. ${p.name}' : p.name,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      )
+      .toList();
+
+  String _postName(String postId) {
+    for (final post in _posts) {
+      if (post.id == postId) return post.name;
+    }
+    return 'Poste';
+  }
+
   String _tripLabel(TripType type) =>
       type == TripType.longueDistance ? 'Longue distance' : 'Demi-trajet';
 
@@ -328,6 +353,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     }
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (_error != null)
@@ -394,49 +420,31 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         ),
                       ),
                       SizedBox(
-                        width: 260,
+                        width: 250,
                         child: DropdownButtonFormField<TollPost>(
-                          initialValue: _post,
+                          initialValue: _origin,
                           isExpanded: true,
                           decoration: const InputDecoration(
-                            labelText: 'Poste de péage',
+                            labelText: 'Premier poste franchi',
                           ),
-                          items: _posts
-                              .map(
-                                (p) => DropdownMenuItem(
-                                  value: p,
-                                  child: Text(
-                                    p.name,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              )
-                              .toList(),
+                          items: _postItems(),
                           onChanged: (value) {
-                            setState(() => _post = value);
+                            setState(() => _origin = value);
                             _refreshPreview();
                           },
                         ),
                       ),
                       SizedBox(
-                        width: 200,
-                        child: DropdownButtonFormField<TripType>(
-                          initialValue: _tripType,
+                        width: 250,
+                        child: DropdownButtonFormField<TollPost>(
+                          initialValue: _destination,
+                          isExpanded: true,
                           decoration: const InputDecoration(
-                            labelText: 'Type de trajet',
+                            labelText: 'Dernier poste franchi',
                           ),
-                          items: TripType.values
-                              .map(
-                                (t) => DropdownMenuItem(
-                                  value: t,
-                                  child: Text(_tripLabel(t)),
-                                ),
-                              )
-                              .toList(),
+                          items: _postItems(),
                           onChanged: (value) {
-                            setState(
-                              () => _tripType = value ?? TripType.longueDistance,
-                            );
+                            setState(() => _destination = value);
                             _refreshPreview();
                           },
                         ),
@@ -445,34 +453,50 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Demi-trajet : vous ne dépassez pas un autre poste de péage.',
+                    'Indiquez le premier et le dernier poste de péage que vous '
+                    'franchirez. Le type de trajet et le montant sont calculés '
+                    'automatiquement.',
                     style: TextStyle(color: Colors.black54),
                   ),
                   const SizedBox(height: 12),
                   if (_previewLoading)
                     const LinearProgressIndicator()
-                  else if (_previewDone && _previewTariff != null)
-                    Text(
-                      'Montant : ${_previewTariff!.amount.toStringAsFixed(2)} '
-                      '${_previewTariff!.currency}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
+                  else if (_quote != null)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${_quote!.postsCrossed} poste(s) — '
+                          '${_tripLabel(_quote!.tripType)}',
+                          style: const TextStyle(color: Colors.black54),
+                        ),
+                        Text(
+                          _quote!.isExempt
+                              ? 'Exemption : passage à 0'
+                              : 'Montant : ${_quote!.amount.toStringAsFixed(2)} '
+                                    '${_quote!.currency}',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     )
-                  else if (_previewDone)
-                    const Text(
-                      'Aucun tarif disponible pour cette combinaison.',
-                      style: TextStyle(color: Colors.orange),
+                  else if (_quoteError != null)
+                    Text(
+                      _quoteError!,
+                      style: const TextStyle(color: Colors.orange),
                     ),
                   const SizedBox(height: 16),
                   Align(
                     alignment: Alignment.centerRight,
                     child: FilledButton.icon(
-                      onPressed: (_submitting ||
-                              _previewTariff == null ||
+                      onPressed:
+                          (_submitting ||
+                              _quote == null ||
                               _vehicle == null ||
-                              _post == null)
+                              _origin == null ||
+                              _destination == null)
                           ? null
                           : _submit,
                       icon: _submitting
@@ -507,46 +531,69 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ),
           )
         else
-          ..._transactions.map(
-            (t) => Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: ListTile(
-                leading: const Icon(Icons.alt_route),
-                title: Text(
-                  '${t.amountDue.toStringAsFixed(2)} ${t.currency} — ${_tripLabel(t.tripType)}',
-                ),
-                subtitle: Text(
-                  '${_vehicleLabel(t.vehicleId)}\n${_formatDate(t.createdAt)}',
-                ),
-                isThreeLine: true,
-                trailing: Wrap(
-                  spacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    if (t.settlementLabel != null)
-                      Chip(label: Text(t.settlementLabel!)),
-                    Chip(label: Text(t.status.label)),
-                    if (_receiptsByTransaction[t.id] != null)
-                      OutlinedButton(
-                        onPressed: () => _showReceipt(t),
-                        child: const Text('Justificatif'),
-                      ),
-                    if (t.canCancel)
-                      FilledButton(
-                        onPressed: () => _pay(t),
-                        child: const Text('Payer'),
-                      ),
-                    if (t.canCancel)
-                      TextButton(
-                        onPressed: () => _cancel(t),
-                        child: const Text('Annuler'),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          ..._transactions.map(_transactionCard),
       ],
+    );
+  }
+
+  /// Une ligne de la liste : colonne simple (pas de ListTile), les puces et
+  /// les boutons passent à la ligne dans un Wrap. Évite toute contrainte
+  /// de largeur serrée sur téléphone.
+  Widget _transactionCard(TollTransaction t) {
+    final destination =
+        t.destinationPostId != null &&
+            t.destinationPostId != t.registrationPostId
+        ? ' → ${_postName(t.destinationPostId!)}'
+        : '';
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${t.amountDue.toStringAsFixed(2)} ${t.currency} — '
+              '${_tripLabel(t.tripType)}'
+              '${t.postsCrossed != null ? ' (${t.postsCrossed} poste(s))' : ''}',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(_vehicleLabel(t.vehicleId)),
+            Text('${_postName(t.registrationPostId)}$destination'),
+            Text(
+              _formatDate(t.createdAt),
+              style: const TextStyle(color: Colors.black54),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (t.settlementLabel != null)
+                  Chip(label: Text(t.settlementLabel!)),
+                Chip(label: Text(t.status.label)),
+                if (_receiptsByTransaction[t.id] != null)
+                  OutlinedButton(
+                    onPressed: () => _showReceipt(t),
+                    child: const Text('Justificatif'),
+                  ),
+                if (t.canCancel)
+                  FilledButton(
+                    onPressed: () => _pay(t),
+                    child: const Text('Payer'),
+                  ),
+                if (t.canCancel)
+                  TextButton(
+                    onPressed: () => _cancel(t),
+                    child: const Text('Annuler'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

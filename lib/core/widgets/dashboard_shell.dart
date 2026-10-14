@@ -51,32 +51,39 @@ class _DashboardShellState extends State<DashboardShell> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < AppConstants.mobileBreakpoint;
-        return Scaffold(
-          appBar: AppBar(
-            leading: isMobile
-                ? Builder(
-                    builder: (context) {
-                      return IconButton(
-                        onPressed: () => Scaffold.of(context).openDrawer(),
-                        icon: const Icon(Icons.menu),
-                        tooltip: 'Menu',
-                      );
-                    },
-                  )
-                : null,
-            title: Text(widget.items[_selectedIndex].label),
-            actions: [
-              if (!isMobile)
+
+        if (!isMobile) {
+          return Scaffold(
+            appBar: AppBar(
+              title: Text(widget.items[_selectedIndex].label),
+              actions: [
                 Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.only(right: 16),
                   child: Center(child: Text(_user.fullName)),
                 ),
-              IconButton(
-                onPressed: _logout,
-                tooltip: 'Se déconnecter',
-                icon: const Icon(Icons.logout),
-              ),
-            ],
+                IconButton(
+                  onPressed: _logout,
+                  tooltip: 'Se déconnecter',
+                  icon: const Icon(Icons.logout),
+                ),
+              ],
+            ),
+            body: Row(children: [Expanded(child: _buildDesktopBody())]),
+          );
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            leading: Builder(
+              builder: (context) {
+                return IconButton(
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                  icon: const Icon(Icons.menu),
+                  tooltip: 'Menu',
+                );
+              },
+            ),
+            title: Text(widget.items[_selectedIndex].label),
           ),
           drawer: Drawer(
             child: Column(
@@ -104,41 +111,57 @@ class _DashboardShellState extends State<DashboardShell> {
                 Expanded(
                   child: ListView.builder(
                     itemCount: widget.items.length,
-                    itemBuilder: (context, index) => _navItem(index),
+                    itemBuilder: (context, index) {
+                      final isSelected = _selectedIndex == index;
+                      return ListTile(
+                        leading: Icon(
+                          widget.items[index].icon,
+                          color: isSelected ? Colors.black : Colors.black87,
+                        ),
+                        title: Text(
+                          widget.items[index].label,
+                          style: TextStyle(
+                            color: isSelected ? Colors.black : Colors.black87,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                        selected: isSelected,
+                        onTap: () {
+                          setState(() => _selectedIndex = index);
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
                   ),
                 ),
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.bottomCenter,
-                    child: ListTile(
-                      leading: const Icon(Icons.logout, color: Colors.black),
-                      title: Text(
-                        'Se déconnecter'.toUpperCase(),
-                        style: TextStyle(color: Colors.black),
-                      ),
-                      onTap: _logout,
-                    ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.logout, color: Colors.black),
+                  title: Text(
+                    'Se déconnecter'.toUpperCase(),
+                    style: const TextStyle(color: Colors.black),
                   ),
+                  onTap: _logout,
                 ),
               ],
             ),
           ),
-          body: isMobile ? _buildMobileBody() : _buildDesktopBody(),
-          bottomNavigationBar: isMobile
-              ? NavigationBar(
-                  selectedIndex: _selectedIndex,
-                  onDestinationSelected: (index) =>
-                      setState(() => _selectedIndex = index),
-                  destinations: widget.items
-                      .map(
-                        (item) => NavigationDestination(
-                          icon: Icon(item.icon),
-                          label: item.label,
-                        ),
-                      )
-                      .toList(),
-                )
-              : null,
+          body: _buildMobileBody(),
+          // bottomNavigationBar: NavigationBar(
+          //   selectedIndex: _selectedIndex,
+          //   onDestinationSelected: (index) =>
+          //       setState(() => _selectedIndex = index),
+          //   destinations: widget.items
+          //       .map(
+          //         (item) => NavigationDestination(
+          //           icon: Icon(item.icon),
+          //           label: item.label,
+          //         ),
+          //       )
+          //       .toList(),
+          // ),
         );
       },
     );
@@ -229,6 +252,7 @@ class _DashboardShellState extends State<DashboardShell> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1100),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(

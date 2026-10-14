@@ -42,6 +42,7 @@ abstract class TollCatalogServiceBase {
     required String code,
     required String name,
     required String location,
+    int? sequence,
   });
 
   Future<TollPost> updateTollPost(
@@ -50,7 +51,12 @@ abstract class TollCatalogServiceBase {
     String? name,
     String? location,
     bool? isActive,
+    int? sequence,
   });
+
+  /// Copie les tarifs en vigueur de [fromPostId] vers [toPostId] (ceux que le
+  /// poste de destination n'a pas déjà). Retourne le nombre de tarifs créés.
+  Future<int> copyTariffs(String fromPostId, String toPostId);
 
   Future<VehicleCategory> createVehicleCategory({
     required String code,
@@ -202,6 +208,7 @@ class TollCatalogService extends TollCatalogServiceBase {
     required String code,
     required String name,
     required String location,
+    int? sequence,
   }) async {
     final sanitizedCode = code.trim();
     final sanitizedName = name.trim();
@@ -216,13 +223,18 @@ class TollCatalogService extends TollCatalogServiceBase {
             'code': sanitizedCode,
             'name': sanitizedName,
             'location': sanitizedLocation,
+            'sequence': ?sequence,
           })
           .select()
           .single();
       return TollPost.fromMap(response);
     } on PostgrestException catch (error) {
       if (error.code == '23505') {
-        throw const TollCatalogServiceException('Ce code de poste existe déjà.');
+        throw TollCatalogServiceException(
+          error.message.contains('sequence')
+              ? 'Cette position sur l’axe est déjà occupée par un autre poste.'
+              : 'Ce code de poste existe déjà.',
+        );
       }
       throw TollCatalogServiceException(
         'La création du poste a échoué : ${error.message}',
@@ -243,12 +255,14 @@ class TollCatalogService extends TollCatalogServiceBase {
     String? name,
     String? location,
     bool? isActive,
+    int? sequence,
   }) async {
     final updates = <String, dynamic>{};
     if (code != null) updates['code'] = code.trim();
     if (name != null) updates['name'] = name.trim();
     if (location != null) updates['location'] = location.trim();
     if (isActive != null) updates['is_active'] = isActive;
+    if (sequence != null) updates['sequence'] = sequence;
     if (updates.isEmpty) {
       throw const TollCatalogServiceException('Aucune modification fournie.');
     }
@@ -262,7 +276,11 @@ class TollCatalogService extends TollCatalogServiceBase {
       return TollPost.fromMap(response);
     } on PostgrestException catch (error) {
       if (error.code == '23505') {
-        throw const TollCatalogServiceException('Ce code de poste existe déjà.');
+        throw TollCatalogServiceException(
+          error.message.contains('sequence')
+              ? 'Cette position sur l’axe est déjà occupée par un autre poste.'
+              : 'Ce code de poste existe déjà.',
+        );
       }
       throw TollCatalogServiceException(
         'La modification du poste a échoué : ${error.message}',
@@ -426,6 +444,23 @@ class TollCatalogService extends TollCatalogServiceBase {
     } catch (_) {
       throw const TollCatalogServiceException(
         'La clôture du tarif a échoué. Vérifiez votre connexion.',
+      );
+    }
+  }
+
+  @override
+  Future<int> copyTariffs(String fromPostId, String toPostId) async {
+    try {
+      final data = await _client.rpc(
+        'admin_copy_tariffs',
+        params: {'p_from': fromPostId, 'p_to': toPostId},
+      );
+      return data is num ? data.toInt() : int.tryParse('$data') ?? 0;
+    } on PostgrestException catch (error) {
+      throw TollCatalogServiceException(error.message);
+    } catch (_) {
+      throw const TollCatalogServiceException(
+        'La copie des tarifs a échoué. Vérifiez votre connexion.',
       );
     }
   }

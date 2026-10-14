@@ -1,7 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/toll_tariff.dart';
 import '../models/toll_transaction.dart';
+import '../models/transaction_quote.dart';
 
 class TransactionServiceException implements Exception {
   const TransactionServiceException(this.message);
@@ -15,12 +15,19 @@ class TransactionServiceException implements Exception {
 abstract class TransactionServiceBase {
   Future<List<TollTransaction>> getMyTransactions();
 
-  /// Le montant et le tarif sont calculés par la base (RPC create_transaction) :
-  /// le client ne les envoie jamais.
+  /// Devis : type de trajet, montant et exemption, calculés par la base.
+  Future<TransactionQuote> quote({
+    required String vehicleId,
+    required String originPostId,
+    required String destinationPostId,
+  });
+
+  /// Le type de trajet, le tarif et le montant sont déterminés par la base
+  /// (RPC create_transaction) : le client ne les envoie jamais.
   Future<TollTransaction> createTransaction({
     required String vehicleId,
-    required String tollPostId,
-    required TripType tripType,
+    required String originPostId,
+    required String destinationPostId,
   });
 
   Future<TollTransaction> cancelTransaction(String transactionId);
@@ -59,10 +66,43 @@ class TransactionService extends TransactionServiceBase {
   }
 
   @override
+  Future<TransactionQuote> quote({
+    required String vehicleId,
+    required String originPostId,
+    required String destinationPostId,
+  }) async {
+    if (_client.auth.currentUser == null) {
+      throw const TransactionServiceException('Utilisateur non authentifié.');
+    }
+    try {
+      final data = await _client.rpc(
+        'quote_transaction',
+        params: {
+          'p_vehicle_id': vehicleId,
+          'p_origin_post_id': originPostId,
+          'p_destination_post_id': destinationPostId,
+        },
+      );
+      if (data is! Map<String, dynamic>) {
+        throw const TransactionServiceException('Réponse inattendue du serveur.');
+      }
+      return TransactionQuote.fromMap(data);
+    } on PostgrestException catch (error) {
+      throw TransactionServiceException(error.message);
+    } on TransactionServiceException {
+      rethrow;
+    } catch (_) {
+      throw const TransactionServiceException(
+        'Le calcul du montant a échoué. Vérifiez votre connexion.',
+      );
+    }
+  }
+
+  @override
   Future<TollTransaction> createTransaction({
     required String vehicleId,
-    required String tollPostId,
-    required TripType tripType,
+    required String originPostId,
+    required String destinationPostId,
   }) async {
     if (_client.auth.currentUser == null) {
       throw const TransactionServiceException('Utilisateur non authentifié.');
@@ -72,8 +112,8 @@ class TransactionService extends TransactionServiceBase {
         'create_transaction',
         params: {
           'p_vehicle_id': vehicleId,
-          'p_post_id': tollPostId,
-          'p_trip_type': tripType.value,
+          'p_origin_post_id': originPostId,
+          'p_destination_post_id': destinationPostId,
         },
       );
       return TollTransaction.fromMap(_asMap(data));

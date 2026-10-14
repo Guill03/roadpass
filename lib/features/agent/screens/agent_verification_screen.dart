@@ -1,19 +1,27 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../models/passage.dart';
+import '../../../models/toll_post.dart';
 import '../../../models/toll_tariff.dart';
 import '../../../services/passage_service.dart';
-
+import '../../../services/toll_catalog_service.dart';
+import '../widgets/qr_scan_dialog.dart';
 
 /// Vérification d'un justificatif par l'agent : saisie/collage du code QR,
 /// contrôle des informations, puis autorisation ou refus du passage.
 /// (La lecture par caméra pourra s'ajouter plus tard ; la saisie manuelle
 /// sert aussi de solution de secours.)
 class AgentVerificationScreen extends StatefulWidget {
-  const AgentVerificationScreen({super.key, required this.passageService});
+  const AgentVerificationScreen({
+    super.key,
+    required this.passageService,
+    required this.catalogService,
+  });
 
   final PassageServiceBase passageService;
+  final TollCatalogServiceBase catalogService;
 
   @override
   State<AgentVerificationScreen> createState() =>
@@ -27,11 +35,46 @@ class _AgentVerificationScreenState extends State<AgentVerificationScreen> {
   String? _message;
   ScannedReceipt? _scanned;
   List<Passage> _history = const [];
+  List<TollPost> _posts = const [];
+
+  /// Poste où l'agent travaille (aucun lien agent-poste n'existe encore :
+  /// c'est l'agent qui l'indique).
+  TollPost? _controlPost;
 
   @override
   void initState() {
     super.initState();
     _loadHistory();
+    _loadPosts();
+  }
+
+  /// La caméra n'est proposée que là où le paquet de lecture la prend en
+  /// charge ; ailleurs (Windows, Linux) la saisie manuelle reste disponible.
+  bool get _cameraSupported =>
+      kIsWeb ||
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.macOS;
+
+  Future<void> _scanWithCamera() async {
+    final code = await showQrScanDialog(context);
+    if (code == null || !mounted) return;
+    _codeController.text = code;
+    await _scan();
+  }
+
+  Future<void> _loadPosts() async {
+    try {
+      final posts = await widget.catalogService.getTollPosts();
+      if (!mounted) return;
+      setState(() {
+        _posts = posts;
+        if (posts.length == 1) _controlPost = posts.first;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+    }
   }
 
   @override
@@ -64,7 +107,10 @@ class _AgentVerificationScreenState extends State<AgentVerificationScreen> {
       _scanned = null;
     });
     try {
-      final scanned = await widget.passageService.scanReceipt(code);
+      final scanned = await widget.passageService.scanReceipt(
+        code,
+        postId: _controlPost?.id,
+      );
       if (!mounted) return;
       setState(() => _scanned = scanned);
     } catch (error) {
@@ -120,6 +166,7 @@ class _AgentVerificationScreenState extends State<AgentVerificationScreen> {
         scanned.qrCode,
         authorized: authorized,
         reason: reason,
+        postId: scanned.postId,
       );
       if (!mounted) return;
       setState(() {
@@ -190,6 +237,31 @@ class _AgentVerificationScreenState extends State<AgentVerificationScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
+                DropdownButtonFormField<TollPost>(
+                  initialValue: _controlPost,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Poste de contrôle',
+                    helperText:
+                        'Le poste où vous travaillez. Sans choix, le prochain '
+                        'poste du trajet est utilisé.',
+                  ),
+                  items: _posts
+                      .map(
+                        (p) => DropdownMenuItem(
+                          value: p,
+                          child: Text(
+                            p.sequence != null ? '${p.sequence}. ${p.name}' : p.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: _busy
+                      ? null
+                      : (value) => setState(() => _controlPost = value),
+                ),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
@@ -204,6 +276,14 @@ class _AgentVerificationScreenState extends State<AgentVerificationScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
+                    if (_cameraSupported) ...[
+                      IconButton.filledTonal(
+                        tooltip: 'Scanner avec la caméra',
+                        onPressed: _busy ? null : _scanWithCamera,
+                        icon: const Icon(Icons.photo_camera_outlined),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     FilledButton(
                       onPressed: _busy ? null : _scan,
                       child: _busy
@@ -239,7 +319,12 @@ class _AgentVerificationScreenState extends State<AgentVerificationScreen> {
                   Text(
                     'Catégorie : ${scanned.categoryCode} — ${scanned.categoryName}',
                   ),
-                  Text('Poste : ${scanned.postName}'),
+                  Text('Poste de contrôle : ${scanned.postName}'),
+                  Text(
+                    'Trajet jusqu’à : ${scanned.destinationName} — '
+                    '${scanned.postsCrossed} poste(s), '
+                    '${scanned.passedCount} déjà franchi(s)',
+                  ),
                   Text('Trajet : ${_tripLabel(scanned.tripType)}'),
                   Text(
                     'Montant payé : ${scanned.amountDue.toStringAsFixed(2)} ${scanned.currency}',

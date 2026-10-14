@@ -1,5 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/admin_statistics.dart';
+import '../models/admin_transaction.dart';
+import '../models/audit_entry.dart';
 import '../models/exemption.dart';
 import '../models/prepaid_account.dart';
 
@@ -20,12 +23,16 @@ class AdminUserSummary {
     required this.fullName,
     required this.email,
     required this.role,
+    this.accountStatus = 'actif',
   });
 
   final String id;
   final String fullName;
   final String email;
   final String role;
+  final String accountStatus;
+
+  bool get isSuspended => accountStatus == 'suspendu';
 }
 
 abstract class AdminOperationsServiceBase {
@@ -42,6 +49,15 @@ abstract class AdminOperationsServiceBase {
   Future<List<PrepaidAccount>> listPrepaidAccounts();
   Future<void> openPrepaidAccount(String userId);
   Future<void> rechargePrepaidAccount(String accountId, int quantity);
+
+  Future<List<AdminTransaction>> listTransactions({String? status});
+  Future<TransactionsSummary> getTransactionsSummary();
+
+  Future<void> setAccountStatus(String userId, String status);
+  Future<List<AuditEntry>> listAuditLog({String? entity});
+  Future<AdminStatistics> getStatistics({int days = 30});
+  Future<bool> getPaymentSimulation();
+  Future<void> setPaymentSimulation(bool enabled);
 }
 
 class AdminOperationsService extends AdminOperationsServiceBase {
@@ -113,23 +129,26 @@ class AdminOperationsService extends AdminOperationsServiceBase {
       });
 
   @override
-  Future<List<AdminUserSummary>> listUsers() =>
-      _guard('Chargement impossible.', () async {
-        // La policy de lecture de profiles autorise l'administrateur à tout lire.
-        final data = await _client
-            .from('profiles')
-            .select('id, nom, prenom, email, role')
-            .order('nom');
-        return (data as List<dynamic>).map((item) {
-          final map = item as Map<String, dynamic>;
-          return AdminUserSummary(
-            id: (map['id'] ?? '').toString(),
-            fullName: '${map['prenom'] ?? ''} ${map['nom'] ?? ''}'.trim(),
-            email: (map['email'] ?? '').toString(),
-            role: (map['role'] ?? '').toString(),
-          );
-        }).toList();
-      });
+  Future<List<AdminUserSummary>> listUsers() => _guard(
+    'Chargement impossible.',
+    () async {
+      // La policy de lecture de profiles autorise l'administrateur à tout lire.
+      final data = await _client
+          .from('profiles')
+          .select('id, nom, prenom, email, role, account_status')
+          .order('nom');
+      return (data as List<dynamic>).map((item) {
+        final map = item as Map<String, dynamic>;
+        return AdminUserSummary(
+          id: (map['id'] ?? '').toString(),
+          fullName: '${map['prenom'] ?? ''} ${map['nom'] ?? ''}'.trim(),
+          email: (map['email'] ?? '').toString(),
+          role: (map['role'] ?? '').toString(),
+          accountStatus: (map['account_status'] ?? 'actif').toString(),
+        );
+      }).toList();
+    },
+  );
 
   @override
   Future<List<PrepaidAccount>> listPrepaidAccounts() =>
@@ -158,6 +177,80 @@ class AdminOperationsService extends AdminOperationsServiceBase {
         await _client.rpc(
           'admin_recharge_prepaid_account',
           params: {'p_account_id': accountId, 'p_quantity': quantity},
+        );
+      });
+
+  @override
+  Future<List<AdminTransaction>> listTransactions({String? status}) => _guard(
+    'Chargement impossible.',
+    () async {
+      final data = await _client.rpc(
+        'admin_list_transactions',
+        params: {'p_status': status, 'p_limit': 200},
+      );
+      return (data as List<dynamic>)
+          .map((item) => AdminTransaction.fromMap(item as Map<String, dynamic>))
+          .toList();
+    },
+  );
+
+  @override
+  Future<TransactionsSummary> getTransactionsSummary() =>
+      _guard('Chargement impossible.', () async {
+        final data = await _client.rpc('admin_transactions_summary');
+        if (data is! Map<String, dynamic>) {
+          throw const AdminOperationsException('Réponse inattendue.');
+        }
+        return TransactionsSummary.fromMap(data);
+      });
+
+  @override
+  Future<void> setAccountStatus(String userId, String status) =>
+      _guard('Modification impossible.', () async {
+        await _client.rpc(
+          'admin_set_account_status',
+          params: {'p_user_id': userId, 'p_status': status},
+        );
+      });
+
+  @override
+  Future<List<AuditEntry>> listAuditLog({String? entity}) =>
+      _guard('Chargement impossible.', () async {
+        final data = await _client.rpc(
+          'admin_list_audit_log',
+          params: {'p_entity': entity, 'p_limit': 200},
+        );
+        return (data as List<dynamic>)
+            .map((item) => AuditEntry.fromMap(item as Map<String, dynamic>))
+            .toList();
+      });
+
+  @override
+  Future<AdminStatistics> getStatistics({int days = 30}) =>
+      _guard('Chargement impossible.', () async {
+        final data = await _client.rpc(
+          'admin_statistics',
+          params: {'p_days': days},
+        );
+        if (data is! Map<String, dynamic>) {
+          throw const AdminOperationsException('Réponse inattendue.');
+        }
+        return AdminStatistics.fromMap(data);
+      });
+
+  @override
+  Future<bool> getPaymentSimulation() =>
+      _guard('Chargement impossible.', () async {
+        final data = await _client.rpc('admin_get_payment_simulation');
+        return data == true;
+      });
+
+  @override
+  Future<void> setPaymentSimulation(bool enabled) =>
+      _guard('Modification impossible.', () async {
+        await _client.rpc(
+          'admin_set_payment_simulation',
+          params: {'p_enabled': enabled},
         );
       });
 }

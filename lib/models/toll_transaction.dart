@@ -53,6 +53,8 @@ class TollTransaction {
     required this.tariffId,
     required this.registrationPostId,
     required this.tripType,
+    this.destinationPostId,
+    this.postsCrossed,
     required this.amountDue,
     required this.currency,
     required this.status,
@@ -67,6 +69,12 @@ class TollTransaction {
   final String tariffId;
   final String registrationPostId;
   final TripType tripType;
+
+  /// Dernier poste franchi (nul pour les anciennes transactions).
+  final String? destinationPostId;
+
+  /// Nombre de postes franchis, départ et arrivée compris.
+  final int? postsCrossed;
   final double amountDue;
   final String currency;
   final TransactionStatus status;
@@ -92,6 +100,10 @@ class TollTransaction {
       tariffId: (map['tariff_id'] ?? '').toString(),
       registrationPostId: (map['registration_post_id'] ?? '').toString(),
       tripType: TripType.fromValue((map['trip_type'] ?? '').toString()),
+      destinationPostId: map['destination_post_id']?.toString(),
+      postsCrossed: map['posts_crossed'] is num
+          ? (map['posts_crossed'] as num).toInt()
+          : null,
       amountDue: _parseDouble(map['amount_due']) ?? 0,
       currency: (map['currency'] ?? '').toString(),
       status: TransactionStatus.fromValue((map['status'] ?? '').toString()),

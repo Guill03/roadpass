@@ -14,12 +14,15 @@ class PassageServiceException implements Exception {
 /// Opérations de l'agent de vérification. Le rôle « agent » est contrôlé par
 /// la base (RPC scan_receipt / decide_passage), pas par Flutter.
 abstract class PassageServiceBase {
-  Future<ScannedReceipt> scanReceipt(String qrCode);
+  /// [postId] : poste où l'agent contrôle. Sans valeur, la base prend le
+  /// prochain poste du trajet non encore franchi.
+  Future<ScannedReceipt> scanReceipt(String qrCode, {String? postId});
 
   Future<Passage> decidePassage(
     String qrCode, {
     required bool authorized,
     String? reason,
+    String? postId,
   });
 
   Future<List<Passage>> getMyPassages();
@@ -38,12 +41,12 @@ class PassageService extends PassageServiceBase {
   }
 
   @override
-  Future<ScannedReceipt> scanReceipt(String qrCode) async {
+  Future<ScannedReceipt> scanReceipt(String qrCode, {String? postId}) async {
     _requireSession();
     try {
       final data = await _client.rpc(
         'scan_receipt',
-        params: {'p_qr_code': qrCode.trim()},
+        params: {'p_qr_code': qrCode.trim(), 'p_post_id': postId},
       );
       if (data is! Map<String, dynamic>) {
         throw const PassageServiceException('Réponse inattendue du serveur.');
@@ -65,6 +68,7 @@ class PassageService extends PassageServiceBase {
     String qrCode, {
     required bool authorized,
     String? reason,
+    String? postId,
   }) async {
     _requireSession();
     try {
@@ -74,6 +78,7 @@ class PassageService extends PassageServiceBase {
           'p_qr_code': qrCode.trim(),
           'p_authorized': authorized,
           'p_reason': reason,
+          'p_post_id': postId,
         },
       );
       final map = data is List && data.isNotEmpty ? data.first : data;

@@ -24,6 +24,7 @@ class _TollPostsAdminScreenState extends State<TollPostsAdminScreen> {
   final _codeController = TextEditingController();
   final _nameController = TextEditingController();
   final _locationController = TextEditingController();
+  final _sequenceController = TextEditingController();
   bool _isActive = true;
 
   @override
@@ -37,6 +38,7 @@ class _TollPostsAdminScreenState extends State<TollPostsAdminScreen> {
     _codeController.dispose();
     _nameController.dispose();
     _locationController.dispose();
+    _sequenceController.dispose();
     super.dispose();
   }
 
@@ -66,6 +68,7 @@ class _TollPostsAdminScreenState extends State<TollPostsAdminScreen> {
     _codeController.clear();
     _nameController.clear();
     _locationController.clear();
+    _sequenceController.clear();
     _isActive = true;
     _error = null;
     if (mounted) setState(() {});
@@ -76,8 +79,66 @@ class _TollPostsAdminScreenState extends State<TollPostsAdminScreen> {
     _codeController.text = post.code;
     _nameController.text = post.name;
     _locationController.text = post.location;
+    _sequenceController.text = post.sequence?.toString() ?? '';
     _isActive = post.isActive;
     setState(() {});
+  }
+
+  Future<void> _copyTariffsInto(TollPost target) async {
+    final sources = _posts.where((p) => p.id != target.id).toList();
+    if (sources.isEmpty) {
+      setState(() => _error = 'Aucun autre poste à copier.');
+      return;
+    }
+    TollPost? source = sources.first;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: Text('Copier les tarifs vers ${target.name}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'À utiliser seulement si les tarifs sont identiques. Seuls les '
+                'tarifs que ce poste n’a pas déjà sont créés.',
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<TollPost>(
+                initialValue: source,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Copier depuis'),
+                items: sources
+                    .map((p) => DropdownMenuItem(value: p, child: Text(p.name)))
+                    .toList(),
+                onChanged: (value) => setLocal(() => source = value),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Copier'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || source == null) return;
+    try {
+      final count = await widget.catalogService.copyTariffs(source!.id, target.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$count tarif(s) copié(s).')),
+      );
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    }
   }
 
   Future<void> _submit() async {
@@ -89,6 +150,7 @@ class _TollPostsAdminScreenState extends State<TollPostsAdminScreen> {
           code: _codeController.text,
           name: _nameController.text,
           location: _locationController.text,
+          sequence: int.tryParse(_sequenceController.text.trim()),
         );
       } else {
         await widget.catalogService.updateTollPost(
@@ -97,6 +159,7 @@ class _TollPostsAdminScreenState extends State<TollPostsAdminScreen> {
           name: _nameController.text,
           location: _locationController.text,
           isActive: _isActive,
+          sequence: int.tryParse(_sequenceController.text.trim()),
         );
       }
       _resetForm();
@@ -189,6 +252,24 @@ class _TollPostsAdminScreenState extends State<TollPostsAdminScreen> {
                         ? 'La localisation est obligatoire.'
                         : null,
                   ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _sequenceController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Position sur l’axe (1 = premier poste en sortant de Kinshasa)',
+                      helperText:
+                          'Nécessaire pour calculer les trajets entre plusieurs postes.',
+                    ),
+                    validator: (value) {
+                      final text = (value ?? '').trim();
+                      if (text.isEmpty) return null;
+                      final number = int.tryParse(text);
+                      return (number == null || number < 1)
+                          ? 'Saisissez un nombre entier positif.'
+                          : null;
+                    },
+                  ),
                   if (_editingPost != null) ...[
                     const SizedBox(height: 8),
                     SwitchListTile(
@@ -231,7 +312,10 @@ class _TollPostsAdminScreenState extends State<TollPostsAdminScreen> {
                   color: post.isActive ? AppTheme.navy : Colors.grey,
                 ),
                 title: Text('${post.code} — ${post.name}'),
-                subtitle: Text(post.location),
+                subtitle: Text(
+                  '${post.sequence != null ? 'Position ${post.sequence} · ' : 'Position non définie · '}'
+                  '${post.location}',
+                ),
                 trailing: Wrap(
                   spacing: 8,
                   children: [
@@ -240,6 +324,11 @@ class _TollPostsAdminScreenState extends State<TollPostsAdminScreen> {
                       backgroundColor: post.isActive
                           ? Colors.green.shade50
                           : Colors.grey.shade200,
+                    ),
+                    IconButton(
+                      tooltip: 'Copier les tarifs d’un autre poste',
+                      icon: const Icon(Icons.copy_all_outlined),
+                      onPressed: () => _copyTariffsInto(post),
                     ),
                     IconButton(
                       icon: const Icon(Icons.edit_outlined),

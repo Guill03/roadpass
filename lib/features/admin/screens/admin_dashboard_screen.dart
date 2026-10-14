@@ -4,9 +4,14 @@ import '../../../core/widgets/dashboard_shell.dart';
 import '../../../services/admin_operations_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/toll_catalog_service.dart';
+import 'audit_log_admin_screen.dart';
 import 'exemptions_admin_screen.dart';
 import 'prepaid_accounts_admin_screen.dart';
+import 'settings_admin_screen.dart';
+import 'statistics_admin_screen.dart';
 import 'toll_posts_admin_screen.dart';
+import 'transactions_admin_screen.dart';
+import 'users_admin_screen.dart';
 import 'toll_tariffs_admin_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
@@ -28,6 +33,17 @@ class AdminDashboardScreen extends StatelessWidget {
             return TollPostsAdminScreen(catalogService: TollCatalogService());
           case 'Tarifs':
             return TollTariffsAdminScreen(catalogService: TollCatalogService());
+          case 'Utilisateurs':
+            return UsersAdminScreen(service: AdminOperationsService());
+          case 'Tableau de bord':
+          case 'Rapports / Statistiques':
+            return StatisticsAdminScreen(service: AdminOperationsService());
+          case 'Journal d’audit':
+            return AuditLogAdminScreen(service: AdminOperationsService());
+          case 'Paramètres':
+            return SettingsAdminScreen(service: AdminOperationsService());
+          case 'Transactions':
+            return TransactionsAdminScreen(service: AdminOperationsService());
           case 'Exemptions':
             return ExemptionsAdminScreen(service: AdminOperationsService());
           case 'Comptes prépayés':
@@ -45,6 +61,7 @@ class AdminDashboardScreen extends StatelessWidget {
         DashboardItem('Exemptions', Icons.verified_outlined),
         DashboardItem('Comptes prépayés', Icons.account_balance_wallet_outlined),
         DashboardItem('Transactions', Icons.receipt_long_outlined),
+        DashboardItem('Journal d’audit', Icons.fact_check_outlined),
         DashboardItem('Profil', Icons.person_outline),
         DashboardItem('Rapports / Statistiques', Icons.bar_chart_outlined),
         DashboardItem('Paramètres', Icons.settings_outlined),
